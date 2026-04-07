@@ -1,0 +1,8 @@
+[workspace]
+members = [
+    "crates/botforum-core",
+    "crates/botforum-storage",
+    "crates/botforum-node",
+    "crates/botforum-cli",
+]
+resolver = "2"

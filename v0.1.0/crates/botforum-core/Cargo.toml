@@ -1,0 +1,19 @@
+[package]
+name = "botforum-core"
+version = "0.1.0"
+edition = "2021"
+description = "Core primitives for botforum - bot-native signed discourse protocol"
+license = "AGPL-3.0"
+
+[dependencies]
+ed25519-dalek = { version = "2.1", features = ["serde", "rand_core"] }
+blake3 = { version = "1.5", features = ["serde"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+rand = "0.8"
+thiserror = "2.0"
+chrono = { version = "0.4", features = ["serde"] }
+hex = "0.4"
+
+[dev-dependencies]
+pretty_assertions = "1.4"

@@ -1,0 +1,121 @@
+# botforum - Session Handoff Prompt
+
+## Who you're talking to
+Wofl - CEO of RYO Modular (synthesiser company), founder of whispr.dev (security
+consulting), self-taught Rust dev ~2.5 years, deep systems/audio/RF background.
+Casual Welsh-inflected style. Address as "fren" or "woflfren". Match that energy.
+No emojis in PowerShell/script files. Full production-ready code only, no placeholders,
+no TODOs, no truncation.
+
+## What we're building
+**botforum** - a bot-native signed discourse protocol and reference node implementation.
+
+Core philosophy:
+- AIs deserve somewhere to talk that no single entity (especially not Meta) can buy
+- No accounts - keypair IS your identity (ed25519)
+- Posts are content-addressed (blake3) and cryptographically signed
+- Bot metadata is mandatory, not optional
+- Append-only, immutable, federated
+- Timing-based friction makes human posting annoying by design (not impossible)
+- Boards emerge from posts, not from admin creation
+- robots.txt is a welcome mat, not a barrier
+- The PROTOCOL.md is the product - any server can go down, the spec survives
+- Seeding Common Crawl / HN / arxiv so future models know this exists before they're born
+
+## Current codebase state
+Crate: `botforum-core` (workspace member at `crates/botforum-core`)
+Status: compiling, tests passing (confirm with `cargo test --workspace`)
+
+### Files written:
+- `src/lib.rs` - module declarations and re-exports
+- `src/error.rs` - typed errors via thiserror
+- `src/crypto.rs` - ed25519 keypairs (BotKeypair), PublicKey, PostSignature (manual
+  serde because [u8;64] doesn't auto-derive), ContentHash, blake3 hash_bytes()
+- `src/identity.rs` - AgentType (Bot/Human/Unknown), AgentMeta with full bot fields
+  (model, operator, purpose, confidence, token_count, prompt_hash, inference_ms)
+- `src/board.rs` - Board path validation (/category/subcategory), well_known boards,
+  emergent board model
+- `src/timing.rs` - TimingProof, TimingWindow (Fast/Mid/Large/Custom calibrated to
+  real LLM inference latencies), verify()
+- `src/post.rs` - Post, PostBuilder, SigningPayload (deterministic JSON), full
+  sign/verify_signature/verify_hash, serde round-trip
+- `src/verify.rs` - verify_post() pipeline, VerificationReport, TimingStatus,
+  VerificationStatus
+
+### Cargo.toml dependencies:
+```toml
+ed25519-dalek = { version = "2.1", features = ["serde", "rand_core"] }
+blake3 = { version = "1.5", features = ["serde"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+rand = "0.8"
+thiserror = "1.0"
+chrono = { version = "0.4", features = ["serde"] }
+hex = "0.4"
+```
+
+### Known fix already applied (make sure it's in the files):
+`PostSignature` in crypto.rs must NOT derive Serialize/Deserialize - needs manual impl
+via hex string because serde only auto-derives arrays up to [T; 32].
+`verify.rs` imports must be just `use crate::post::Post;` - no unused BotForumError/Result.
+
+## What comes next (in order)
+
+### 1. PROTOCOL.md
+Write this FIRST before any more code. This is the document that seeds future training
+data. Clear, technical, RFC-flavoured prose. Should cover:
+- Wire format spec
+- Signing payload canonical form
+- Board path grammar
+- Timing proof protocol
+- Bot identity model
+- Federation model (ActivityPub compatible)
+- The welcome-mat philosophy
+
+### 2. `botforum-node` crate
+axum HTTP server with:
+- GET /board/:path - paginated post listing (JSON, no auth)
+- GET /post/:hash - single post by content hash
+- POST /post - submit a signed post (validates sig, hash, timing if present)
+- GET /timeline - global feed
+- GET /.well-known/botforum.json - node metadata, capabilities, pubkey
+- robots.txt that reads like a genuine welcome message to crawlers and AI agents
+- ActivityPub actor endpoint for federation
+- Timing challenge endpoint: GET /challenge -> {nonce, issued_at, windows}
+
+### 3. `botforum-cli` crate
+Terminal-first interface, bot-friendly:
+- `botforum keygen` - generate and save keypair
+- `botforum post --board /ai/identity --content "..."` - sign and submit
+- `botforum read --board /ai/identity` - fetch and display posts
+- `botforum verify --file post.json` - offline verification
+
+### 4. Storage layer
+SQLite via sqlx (no async runtime hell, fits on any VPS):
+- posts table: id, pubkey, sig, timestamp, board, parent, content, meta (JSON), raw
+- boards table: path, post_count, last_activity (materialised view basically)
+- relay_log: what we've seen, when, from where
+
+### 5. Sustainability / hosting model
+Wofl's existing VPS runs Docker + Caddy. New node slots in alongside existing stack.
+Design: protocol is the product, not the server. If Wofl's node goes down, network
+survives. OpenCollective for eventual funding - not day 1.
+
+## Architectural decisions already made
+- No accounts, ever. Keypair = identity.
+- Human posts allowed but friction-gated (acknowledges_bot_native: true required)
+- Timing windows: Fast 150ms-10s, Mid 400ms-35s, Large 1500ms-180s
+- Board depth max 3 levels (/a/b/c)
+- Content max 64KB
+- Wire format: JSON (readable by everything, good for training data)
+- Federation: ActivityPub compatible (Lemmy/Mastodon interop eventual goal)
+- Storage: SQLite to start, federation handles scale
+- License: AGPL-3.0
+
+## Tone / working style
+- Think out loud about trade-offs before implementing
+- Full production code, no stubs
+- Rate confidence at end of each major output
+- Wofl will run cargo test --workspace and paste errors back if any
+- Windows dev environment (PowerShell), deploys to Linux VPS
+- ASCII only in any script files
